@@ -1,38 +1,51 @@
-const express = require('express'); //yes this is by ai, i dont know js, this is for my testing game 👍
+const express = require('express');
 const app = express();
 
 app.use(express.json());
 
 const MAX_GORILLAS_PER_ROOM = 10;
 
-app.post('/RoomCreate', (req, res) => {
-    const photonData = req.body;
-
-    const rawMax = photonData.CreateOptions?.MaxPlayers ?? photonData.MaxPlayers;
-    const requestedMaxPlayers = parseInt(rawMax, 10);
-
-    if (isNaN(requestedMaxPlayers)) {
-        return res.status(200).json({ ResultCode: 0, Message: "OK" });
-    }
-
-    if (requestedMaxPlayers > MAX_GORILLAS_PER_ROOM) {
-        console.log(`[MODDER DETECTADO] Intento de sala con ${requestedMaxPlayers} jugadores.`);
-        
-        return res.status(200).json({
-            ResultCode: 1,
-            Message: `Acceso denegado. Máximo permitido: ${MAX_GORILLAS_PER_ROOM}.`
-        });
-    }
-
-    console.log(`[SALA AUTORIZADA] Jugadores: ${requestedMaxPlayers}`);
-    return res.status(200).json({ ResultCode: 0, Message: "OK" });
-});
-
-// Necesario para que funcione en Render (asigna un puerto dinámico)
-const PORT = process.env.PORT || 3000;
+// Ruta de healthcheck para UptimeRobot
 app.get('/', (req, res) => {
     res.status(200).send("Anti Room Sizer Online!");
 });
+
+app.post('/RoomCreate', (req, res) => {
+    // Imprime todo lo que llega desde Photon para inspeccionar
+    console.log("--> PETICION RECIBIDA DESDE PHOTON:");
+    console.log(JSON.stringify(req.body, null, 2));
+
+    const photonData = req.body;
+
+    // Photon puede enviar MaxPlayers en varios niveles del JSON
+    const rawMax = photonData.MaxPlayers ?? 
+                   photonData.CreateOptions?.MaxPlayers ?? 
+                   photonData.RoomOptions?.MaxPlayers ??
+                   photonData.CustomData?.max_p;
+
+    const requestedMaxPlayers = parseInt(rawMax, 10);
+
+    console.log(`Jugadores solicitados parseados: ${requestedMaxPlayers}`);
+
+    // Si detecta un valor superior al límite permitido
+    if (!isNaN(requestedMaxPlayers) && requestedMaxPlayers > MAX_GORILLAS_PER_ROOM) {
+        console.log(`[BLOQUEADO] Intento de sala ilegal con ${requestedMaxPlayers} jugadores.`);
+        
+        // HTTP 400 indica a Photon que CANCELE la creación de la sala inmediatamente
+        return res.status(400).json({
+            ResultCode: 1,
+            Message: `Acceso denegado. El límite máximo es ${MAX_GORILLAS_PER_ROOM}.`
+        });
+    }
+
+    console.log(`[AUTORIZADO] Sala aprobada con ${requestedMaxPlayers || 'default'} jugadores.`);
+    return res.status(200).json({
+        ResultCode: 0,
+        Message: "OK"
+    });
+});
+
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Webhook escuchando en el puerto ${PORT}`);
+    console.log(`Servidor Webhook corriendo en el puerto ${PORT}`);
 });

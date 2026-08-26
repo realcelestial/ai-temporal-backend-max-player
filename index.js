@@ -30,6 +30,9 @@ app.post('/RoomCreate', (req, res) => {
 
 // Necesario para que funcione en Render (asigna un puerto dinámico)
 const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => {
+    res.status(200).send("Anti Room Sizer Online!");
+});
 app.listen(PORT, () => {
     console.log(`Webhook escuchando en el puerto ${PORT}`);
 });

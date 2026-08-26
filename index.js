@@ -4,40 +4,37 @@ app.use(express.json());
 
 const MAX_PLAYERS = 10;
 
-// Healthcheck
 app.get('/', (req, res) => {
     res.status(200).send("Anti Room Sizer Online!");
 });
 
-app.post('/RoomCreate', (req, res) => {
-    console.log("--> PETICION RECIBIDA DESDE PHOTON:");
+// Realtime Webhooks llama /CreateGame, no /RoomCreate
+app.post('/CreateGame', (req, res) => {
+    console.log("--> CREATEGAME RECIBIDO:");
     console.log(JSON.stringify(req.body, null, 2));
 
     const body = req.body;
-
-    // Fusion v2 manda MaxPlayers en CreateOptions — cubrimos todos los niveles conocidos
     const rawMax =
+        body?.MaxPlayers                ??
         body?.CreateOptions?.MaxPlayers ??
         body?.RoomOptions?.MaxPlayers   ??
-        body?.MaxPlayers                ??
         body?.CustomData?.max_p         ??
         null;
 
     const requested = parseInt(rawMax, 10);
 
-    // Si no viene el campo o no es parseable — BLOQUEAR por defecto
-    // Un cliente legítimo siempre manda el número; si no lo manda, algo raro pasa
     if (rawMax === null || isNaN(requested)) {
-        console.warn(`[BLOQUEADO] MaxPlayers ausente o ilegible. Body: ${JSON.stringify(body)}`);
-        return res.status(400).json({
+        console.warn(`[BLOQUEADO] MaxPlayers ausente. Body: ${JSON.stringify(body)}`);
+        // Realtime siempre HTTP 200 — el bloqueo va en ResultCode
+        return res.status(200).json({
             ResultCode: 1,
-            Message: "MaxPlayers requerido y no fue enviado."
+            Message: "MaxPlayers requerido."
         });
     }
 
     if (requested > MAX_PLAYERS) {
-        console.warn(`[BLOQUEADO] Intento con ${requested} jugadores — límite ${MAX_PLAYERS}.`);
-        return res.status(400).json({
+        console.warn(`[BLOQUEADO] Intento con ${requested} jugadores.`);
+        return res.status(200).json({
             ResultCode: 1,
             Message: `Límite máximo: ${MAX_PLAYERS} jugadores.`
         });
@@ -50,11 +47,18 @@ app.post('/RoomCreate', (req, res) => {
     });
 });
 
-// PathClose requerido por el plugin — Photon llama esto al cerrar sala
-app.post('/RoomClose', (req, res) => {
+// Realtime también llama /CloseGame
+app.post('/CloseGame', (req, res) => {
     console.log("--> SALA CERRADA:");
     console.log(JSON.stringify(req.body, null, 2));
-    return res.status(200).json({ ResultCode: 0, Message: "OK" });
+    return res.status(200).json({ ResultCode: 0 });
+});
+
+// JoinGame — Photon llama esto cuando alguien se une
+app.post('/JoinGame', (req, res) => {
+    console.log("--> JOIN RECIBIDO:");
+    console.log(JSON.stringify(req.body, null, 2));
+    return res.status(200).json({ ResultCode: 0 });
 });
 
 const PORT = process.env.PORT || 3000;
